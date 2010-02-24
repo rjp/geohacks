@@ -1,5 +1,9 @@
 #! /usr/bin/env ruby
 
+# sqlite schema for moostrax-backup.rb
+# CREATE TABLE history (ts timestamp, latitude real, longitude real, altitude real, speed real, accuracy real, heading real, device integer, battery real);
+# CREATE TABLE last_fetch (ts timestamp, device integer);
+
 require 'rubygems'
 require 'moostrax'
 require 'time'
