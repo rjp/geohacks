@@ -27,22 +27,25 @@ devices.each do |device|
     start = Time.parse(maxdate[0])
 
     while start < now do
-	    puts "history from #{start} to #{start+86399}"
-	    history = mt.history(device, start, start + 86399)
-	    p history
-	    if history.length > 0 then
-	    $dbh.transaction do 
-		    history.each do |point|
-	# create table history (ts timestamp, latitude real, longitude real, altitude real, speed real, accuracy real, heading real, device integer);
-		        $savepoint.execute(point['date'], point['latitude'], point['longitude'], point['altitude'], point['speed'], point['accuracy'], point['heading'], point['device_id'],point['battery'])
+        day_from = start
+        day_to = start + 86399
+        loop do
+		    puts "D#{device} from #{day_from} to #{day_to} (#{now})"
+		    history = mt.history(device, day_from, day_to)
+    p history
+		    if history.length > 0 then
+			    $dbh.transaction do
+				    history.each do |point|
+				        $savepoint.execute(point['date'], point['latitude'], point['longitude'], point['altitude'], point['speed'], point['accuracy'], point['heading'], point['device_id'],point['battery'])
+				    end
+	            end
+	            day_to = Time.parse(history[-1]['date'])-1
+            else
+                break
 		    end
-	    end
-	    end
-	    if history.length == 50 then # possibly full buffer
-            start = Time.parse(history[-1]['date'])+1
-        else
-	        start = start + 86400
-    	end
+            sleep 5
+        end
+        start = start + 86400
         $update_fetch.execute(start, device)
         sleep 5
     end
