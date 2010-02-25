@@ -10,6 +10,7 @@ my $colourfile = "colors.png";
 my $col_lat = 1;
 my $col_long = 2;
 my $fieldnames = undef;
+my $draw_gmap = 1;
 
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
@@ -25,7 +26,8 @@ my $result = GetOptions(
     "colourfile=s" => \$colourfile,
     "clatitude=i" => \$col_lat,
     "clongitude=i" => \$col_long,
-    "fieldnames=i" => \$fieldnames,
+    "fieldnames" => \$fieldnames,
+    "gmap!" => \$draw_gmap,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
@@ -90,7 +92,10 @@ my $p = $image->Fx(expression=>"v.p{0,u*v.h}");
 $| = 1;
 binmode STDOUT;
 
-my $gmap = get($static_map);
+my $gmap = undef;
+if ($draw_gmap) {
+    $gmap = get($static_map);
+}
 if (defined $gmap) { # we got our static map
     use IO::String;
     my $data = IO::String->new($gmap);
@@ -106,13 +111,17 @@ if (defined $gmap) { # we got our static map
         print STDERR "combined heatmap/gmap written to $output\n";
     }
 } else {
-    print STDERR "# couldn't fetch static gmap, try these commands:\n";
     my $to = 'your_stdout.png';
     if (not defined $output) {
         $p->Write('png:-');
     } else {
         $p->Write($output);
         $to = $output;
+    }
+    if ($draw_gmap) { # wanted static map, couldn't fetch it
+        print STDERR "couldn't fetch static gmap, try these commands:\n";
+    } else { # didn't want static map, didn't fetch it
+        print STDERR "heatmap layer rendered to $to, use these commands to merge:\n";
     }
     print STDERR "wget -O tmp.png '$static_map'\n";
     print STDERR "composite -compose Multiply -gravity center $to tmp.png heatmap.png\n";
@@ -144,14 +153,6 @@ sub ll_to_px {
     my $llwpy = latToWY($lat);
     my $dx = ($llwpx - $cwpx) / (2**(21 - $zoom));
     my $dy = ($llwpy - $cwpy) / (2**(21 - $zoom));
-   
+
     return $dx + ($width/2), $dy + ($height/2),$llwpx,$llwpy;
 }
-
-while (<DATA>) {
-    chomp;
-#    print "$_ => ",join(',', ll_to_px(split(/,/))),"\n";
-}
-__DATA__
-0,0,0,0,11,512,512
-58.3756113333,26.7547026667,58.3756113333,26.7547026667,11,512,512
