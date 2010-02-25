@@ -7,6 +7,9 @@ use LWP::Simple;
 my $size = '600x600';
 my $output = undef;
 my $colourfile = "colors.png";
+my $col_lat = 1;
+my $col_long = 2;
+my $fieldnames = undef;
 
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
@@ -20,6 +23,9 @@ my $result = GetOptions(
     "size=s" => \$size,
     "output=s" => \$output,
     "colourfile=s" => \$colourfile,
+    "clatitude=i" => \$col_lat,
+    "clongitude=i" => \$col_long,
+    "fieldnames=i" => \$fieldnames,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
@@ -37,6 +43,27 @@ if (! -r $colourfile) {
 
 my $static_map = "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=false&center=${centre_lat},${centre_long}&zoom=${zoom}";
 
+# try and find the lat/long fields from the first line
+# only works for /^(long|lat)(itude|$)/
+if (defined $fieldnames) {
+    my @fields = split /,/, <>;
+    my $i = 1;
+    foreach my $j (@fields) {
+        if ($j =~ /^(latitude|lat)$/i) {
+            $col_lat = $i;
+        }
+        if ($j =~ /^(longitude|long)$/i) {
+            $col_long = $i;
+        }
+        $i++; # no each_with_index in perl, boo
+    }
+    print STDERR "found latitude at $col_lat, longitude at $col_long\n";
+}
+
+# adjust human-powered column numbers into perl-powered array indexes
+$col_lat--;
+$col_long--;
+
 my $image = Image::Magick->new();
 $image->Set(size=>$size);
 $image->Set(format=>'png');
@@ -45,7 +72,9 @@ my $radius = 1;
 
 # magic FH, STDIN or files on commandline
 while (<>) {
-    my ($lat, $long) = split /,/;
+    # TODO use a real CSV parser here?
+    my @fields = split /,/;
+    my ($lat, $long) = ($fields[$col_lat], $fields[$col_long]);
     my ($px, $py, $wpx, $wpy) = ll_to_px($lat, $long, $centre_lat, $centre_long, $zoom, $width, $height);
     my $points = sprintf("%d,%d %d,%d", $px, $py, $px+$radius, $py+$radius);
     if ($px >= 0 and $px <= $width and $py >= 0 and $py <= $height) {

@@ -16,7 +16,9 @@ Options
 --colourfile  heatmap palette (colors.png)
 --output  output filename (STDOUT if not given)
 --size  pixel size of the output (600x600, max 640x640)
+--clatitude  which field of the CSV contains the latitude (1)
+--clongitude  which field of the CSV contains the longitude (2)
 
 Input
 -----
-Simple CSV with two fields, latitude and longitude.
+Simple CSV with latitude and longitude in distinct fields
