@@ -18,6 +18,8 @@ Options
 --size  pixel size of the output (600x600, max 640x640)
 --clatitude  which field of the CSV contains the latitude (1)
 --clongitude  which field of the CSV contains the longitude (2)
+--fieldnames  try and guess the fields with lat/long (off)
+--nogmap  don't fetch and merge the google static map
 
 Input
 -----
