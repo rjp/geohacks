@@ -35,7 +35,7 @@ devices.each do |device|
     while start < midnight do # never start fetching today's records
         day_from = start
         # never cross today's boundary
-        day_to = [start + 86399, midnight].max
+        day_to = [start + 86399, midnight].min
         loop do
 		    puts "D#{device} from #{day_from} to #{day_to} (#{now})"
 		    history = mt.history(device, day_from, day_to)
