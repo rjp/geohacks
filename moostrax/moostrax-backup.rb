@@ -20,6 +20,8 @@ $update_fetch = $dbh.prepare("update last_fetch set ts=? where device=?")
 mt = MoosTrax.new($apikeys[:moostrax])
 
 now = Time.now
+# this is silly, why can't I just set the hour/min/sec to 00?
+midnight = Time.parse(now.strftime('%Y-%m-%d 00:00:00'))
 
 devices = mt.devices
 
@@ -30,9 +32,10 @@ devices.each do |device|
     p maxdate
     start = Time.parse(maxdate[0])
 
-    while start < now do
+    while start < midnight do # never start fetching today's records
         day_from = start
-        day_to = start + 86399
+        # never cross today's boundary
+        day_to = [start + 86399, midnight].max
         loop do
 		    puts "D#{device} from #{day_from} to #{day_to} (#{now})"
 		    history = mt.history(device, day_from, day_to)
