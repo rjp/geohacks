@@ -11,6 +11,7 @@ my $col_lat = 1;
 my $col_long = 2;
 my $fieldnames = undef;
 my $draw_gmap = 1;
+my $auto_lat = undef;
 
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
@@ -28,6 +29,7 @@ my $result = GetOptions(
     "clongitude=i" => \$col_long,
     "fieldnames" => \$fieldnames,
     "gmap!" => \$draw_gmap,
+    "auto!" => \$auto_lat,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
@@ -42,8 +44,6 @@ if ($width > 640 or $height > 640) {
 if (! -r $colourfile) {
     die "Error: $colourfile is not readable";
 }
-
-my $static_map = "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=false&center=${centre_lat},${centre_long}&zoom=${zoom}";
 
 # try and find the lat/long fields from the first line
 # only works for /^(long|lat)(itude|$)/
@@ -72,11 +72,32 @@ $image->Set(format=>'png');
 $image->ReadImage('xc:black', $colourfile);
 my $radius = 1;
 
+my ($min_lat, $min_long) = (9999,9999);
+my ($max_lat, $max_long) = (-9999,-9999);
+
 # magic FH, STDIN or files on commandline
+my @points = ();
 while (<>) {
+    chomp;
     # TODO use a real CSV parser here?
     my @fields = split /,/;
     my ($lat, $long) = ($fields[$col_lat], $fields[$col_long]);
+    # store the points here because we might need the bounds before we plot any points
+    push @points, [$lat, $long];
+
+    if ($lat < $min_lat) { $min_lat = $lat; }
+    if ($long < $min_long) { $min_long = $long; }
+    if ($lat > $max_lat) { $max_lat = $lat; }
+    if ($long > $max_long) { $max_long = $long; }
+}
+
+if (defined $auto_lat) {
+    ($centre_lat,$centre_long,$zoom) = bounds_to_zoom($min_lat,$min_long,$max_lat,$max_long,$width,$height);
+    print STDERR "Auto-scaling: --lat $centre_lat --long $centre_long --zoom $zoom\n";
+}
+
+foreach my $i (@points) {
+    my ($lat, $long) = @{$i};
     my ($px, $py, $wpx, $wpy) = ll_to_px($lat, $long, $centre_lat, $centre_long, $zoom, $width, $height);
     my $points = sprintf("%d,%d %d,%d", $px, $py, $px+$radius, $py+$radius);
     if ($px >= 0 and $px <= $width and $py >= 0 and $py <= $height) {
@@ -91,6 +112,8 @@ my $p = $image->Fx(expression=>"v.p{0,u*v.h}");
 
 $| = 1;
 binmode STDOUT;
+
+my $static_map = "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=false&center=${centre_lat},${centre_long}&zoom=${zoom}";
 
 my $gmap = undef;
 if ($draw_gmap) {
@@ -156,3 +179,39 @@ sub ll_to_px {
 
     return $dx + ($width/2), $dy + ($height/2),$llwpx,$llwpy;
 }
+
+sub bounds_to_zoom {
+    my ($latmin, $lngmin, $latmax, $lngmax,$w,$h) = @_;
+    my $clat = ($latmin+$latmax)/2;
+    my $clng = ($lngmin+$lngmax)/2;
+    my $hw = $w/2;
+    my $hh = $h/2;
+    # find the pixel coordinates of our min/max points based on zoom 9
+    my ($minx, $miny) = ll_to_px($latmin, $lngmin, $clat, $clng, 9, $w, $h);
+    my ($maxx, $maxy) = ll_to_px($latmax, $lngmax, $clat, $clng, 9, $w, $h);
+
+    # work out the largest offset from our centre point
+    # this determines our zoom level
+    my $off_x = abs($hw-$minx); if ($maxx-$hw > $off_x) { $off_x = $maxx-$hw; }
+    my $off_y = abs($hh-$miny); if ($maxy-$hh > $off_y) { $off_y = $maxy-$hh; }
+
+# print STDERR "($minx,$miny) - ($maxx,$maxy) into ($w,$h) = \n";
+# print STDERR "dx=",abs($hw-$minx),",",$maxx-$hw," ";
+# print STDERR "dy=",abs($hh-$miny),",",$mayy-$hh,"\n";
+
+    # convert our offsets into zooms based on a delta from zoom=9
+    my $zx = $off_x / $hw;
+    my $zoom_x = int(9 - log($zx)/log(2) - 0.25);
+    my $zy = $off_y / $hh;
+    my $zoom_y = int(9 - log($zy)/log(2) - 0.25);
+
+# print STDERR "ox=$off_x, oy=$off_y, zx=$zoom_x, zy=$zoom_y\n";
+
+    # pick the smaller zoom since it's guaranteed to fit our data
+    if ($zoom_x < $zoom_y) {
+        return $clat, $clng, $zoom_x;
+    } else {
+        return $clat, $clng, $zoom_y;
+    }
+}
+

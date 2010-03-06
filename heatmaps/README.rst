@@ -19,7 +19,8 @@ Options
 --clatitude  which field of the CSV contains the latitude (1)
 --clongitude  which field of the CSV contains the longitude (2)
 --fieldnames  try and guess the fields with lat/long (off)
---nogmap  don't fetch and merge the google static map
+--no-gmap  don't fetch and merge the google static map
+--auto_lat  calculate the centre lat/long and zoom from the data (off)
 
 Input
 -----
