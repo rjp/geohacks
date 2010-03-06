@@ -3,6 +3,7 @@
 use Image::Magick;
 use Getopt::Long;
 use LWP::Simple;
+use Scalar::Util qw(looks_like_number);
 
 my $size = '600x600';
 my $output = undef;
@@ -48,7 +49,8 @@ if (! -r $colourfile) {
 # try and find the lat/long fields from the first line
 # only works for /^(long|lat)(itude|$)/
 if (defined $fieldnames) {
-    my @fields = split /,/, <>;
+    chomp (my $first_line = <>);
+    my @fields = split /,/, $first_line;
     my $i = 1;
     foreach my $j (@fields) {
         if ($j =~ /^(latitude|lat)$/i) {
@@ -75,13 +77,26 @@ my $radius = 1;
 my ($min_lat, $min_long) = (9999,9999);
 my ($max_lat, $max_long) = (-9999,-9999);
 
+my $bad_lines = 0;
+
 # magic FH, STDIN or files on commandline
 my @points = ();
 while (<>) {
     chomp;
+    next if /^\s*$/; # ignore whitespace
+
     # TODO use a real CSV parser here?
     my @fields = split /,/;
     my ($lat, $long) = ($fields[$col_lat], $fields[$col_long]);
+
+    if (not defined $lat or
+        not defined $long or
+        not looks_like_number $lat or
+        not looks_like_number $long) {
+        $bad_lines++;
+        next;
+    }
+
     # store the points here because we might need the bounds before we plot any points
     push @points, [$lat, $long];
 
@@ -89,6 +104,10 @@ while (<>) {
     if ($long < $min_long) { $min_long = $long; }
     if ($lat > $max_lat) { $max_lat = $lat; }
     if ($long > $max_long) { $max_long = $long; }
+}
+
+if ($bad_lines > 0) {
+    print STDERR "Ignored $bad_lines bad lines\n";
 }
 
 if (defined $auto_lat) {
