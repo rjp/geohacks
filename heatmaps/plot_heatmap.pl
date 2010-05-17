@@ -105,7 +105,7 @@ foreach my $i (@points) {
     }
 }
 
-$image->[0]->ContrastStretch(channel => 'All', levels => '5%');
+$image->[0]->ContrastStretch(channel => 'All', levels => '15%');
 $image->[0]->Blur(radius => 2, sigma => 2);
 $image->[0]->Set(type => 'TrueColorMatte');
 my $p = $image->Fx(expression=>"v.p{0,u*v.h}");
