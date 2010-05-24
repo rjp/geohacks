@@ -4,6 +4,7 @@ use Image::Magick;
 use Getopt::Long;
 use LWP::Simple;
 use Scalar::Util qw(looks_like_number);
+use Data::Dumper;
 
 my $size = '600x600';
 my $output = undef;
@@ -13,8 +14,9 @@ my $col_long = 2;
 my $fieldnames = undef;
 my $draw_gmap = 1;
 my $auto_lat = undef;
-my $gmap_cachedir = undef;
-my $limitres = undef;
+my $gmap_cachedir = undef; # store gmap tiles to save fetches
+my $limitres = undef; # store cache files to 2dp
+my $loose = undef; # if cache matches are allowed to be loose
 
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
@@ -35,6 +37,7 @@ my $result = GetOptions(
     "auto!" => \$auto_lat,
     "cachedir=s" => \$gmap_cachedir,
     "limitres!" => \$limitres,
+    "loose!" => \$loose,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
@@ -128,6 +131,29 @@ if (defined $auto_lat) {
     print STDERR "Auto-scaling: --lat $centre_lat --long $centre_long --zoom $zoom\n";
 }
 
+if (defined $loose and defined $gmap_cachedir) { # look for almost matches in the cache
+    opendir CACHE, $gmap_cachedir;
+    my @files = readdir CACHE;
+    my @possibles = grep { /^phgmc_${size}_${zoom}_.*.png$/ } @files;
+    closedir CACHE;
+    foreach my $possible (@possibles) {
+        $possible =~ s/.png$//; # gets in the way of the split
+        my ($junk, $sz, $zm, $mila, $milo, $mala, $malo) = split(/_/, $possible); # extract corners
+        next if $sz != $size; # should never happen
+        next if $zm != $zoom; # should never happen
+        my @diffs = (abs($mila-$min_lat), abs($milo-$min_long), abs($mala-$max_lat), abs($malo-$max_long));
+        my $max = (sort {$b<=>$a} @diffs)[0];
+        push @maybe, [$max, $possible];
+    }
+    if (@maybe) {
+        my $best = (sort {$a->[0] <=> $b->[0]} @maybe)[0];
+        if ($best->[0] <= 0.02) {
+            ($junk, $size, $zoom, $min_lat, $min_long, $max_lat, $max_long) = split(/_/, $best->[1]);
+            print STDERR "best: $best->[0] ($min_lat,$min_long), ($max_lat,$max_long)\n";
+        }
+    }
+}
+
 foreach my $i (@points) {
     my ($lat, $long) = @{$i};
     my ($px, $py, $wpx, $wpy) = ll_to_px($lat, $long, $centre_lat, $centre_long, $zoom, $width, $height);
@@ -150,7 +176,7 @@ my $static_map = "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=
 my $gmap = undef;
 if ($draw_gmap) {
     if (defined $gmap_cachedir) {
-        my $cachename = "${size}-${centre_lat}-${centre_long}-${zoom}";
+        my $cachename = join('_', "phgmc",$size,$zoom,$min_lat,$min_long,$max_lat,$max_long);
         my $cachefile = "$gmap_cachedir/$cachename.png";
         if (-e $cachefile) {
             print STDERR "using cached map: $cachename\n";
