@@ -14,6 +14,7 @@ my $fieldnames = undef;
 my $draw_gmap = 1;
 my $auto_lat = undef;
 my $gmap_cachedir = undef;
+my $limitres = undef;
 
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
@@ -33,6 +34,7 @@ my $result = GetOptions(
     "gmap!" => \$draw_gmap,
     "auto!" => \$auto_lat,
     "cachedir=s" => \$gmap_cachedir,
+    "limitres!" => \$limitres,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
@@ -110,6 +112,15 @@ while (<>) {
 
 if ($bad_lines > 0) {
     print STDERR "Ignored $bad_lines bad lines\n";
+}
+
+if (defined $limitres) {
+    print STDERR "old: ($min_lat,$min_long), ($max_lat,$max_long)\n";
+    $min_lat = (int((100*$min_lat) - 0.5))/100;
+    $min_long = (int((100*$min_long) - 0.5))/100;
+    $max_lat = (int((100*$max_lat) + 0.5))/100;
+    $max_long = (int((100*$max_long) + 0.5))/100;
+    print STDERR "new: ($min_lat,$min_long), ($max_lat,$max_long)\n";
 }
 
 if (defined $auto_lat) {
