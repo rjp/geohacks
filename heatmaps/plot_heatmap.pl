@@ -13,6 +13,7 @@ my $col_long = 2;
 my $fieldnames = undef;
 my $draw_gmap = 1;
 my $auto_lat = undef;
+my $gmap_cachedir = undef;
 
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
@@ -31,6 +32,7 @@ my $result = GetOptions(
     "fieldnames" => \$fieldnames,
     "gmap!" => \$draw_gmap,
     "auto!" => \$auto_lat,
+    "cachedir=s" => \$gmap_cachedir,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
@@ -136,7 +138,26 @@ my $static_map = "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=
 
 my $gmap = undef;
 if ($draw_gmap) {
-    $gmap = get($static_map);
+    if (defined $gmap_cachedir) {
+        my $cachename = "${size}-${centre_lat}-${centre_long}-${zoom}";
+        my $cachefile = "$gmap_cachedir/$cachename.png";
+        if (-e $cachefile) {
+            print STDERR "using cached map: $cachename\n";
+            open G, '<', $cachefile;
+            binmode G;
+            undef $/;
+            $gmap = <G>;
+            close G;
+        } else {
+            $gmap = get($static_map);
+            open G, '>', $cachefile;
+            binmode G;
+            print G $gmap;
+            close G;
+        }
+    } else {
+        $gmap = get($static_map);
+    }
 }
 if (defined $gmap) { # we got our static map
     use IO::String;
