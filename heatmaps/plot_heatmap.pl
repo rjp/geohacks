@@ -66,6 +66,10 @@ if (! -r $colourfile) {
     die "Error: $colourfile is not readable";
 }
 
+if (defined $zoom and defined $auto_lat) {
+    print "--zoom and --auto forces zoom to be $zoom\n";
+    $force_zoom = $zoom;
+}
 # try and find the lat/long fields from the first line
 # only works for /^(long|lat)(itude|$)/
 if (defined $fieldnames) {
