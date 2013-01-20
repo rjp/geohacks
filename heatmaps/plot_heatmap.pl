@@ -41,6 +41,8 @@ my ($width, $height) = $size =~ /^(\d+)x(\d+)$/;
 if ($width > 640 or $height > 640) {
     die "Error: size must be less than 640x640, you wanted $size";
 }
+my ($p_width, $p_height) = (2*$width, 2*$height);
+print "$size => ${p_width}x${p_height}\n";
 
 if (! -r $colourfile) {
     die "Error: $colourfile is not readable";
@@ -69,7 +71,7 @@ $col_lat--;
 $col_long--;
 
 my $image = Image::Magick->new();
-$image->Set(size=>$size);
+$image->Set(size=>"${p_width}x${p_height}");
 $image->Set(format=>'png');
 $image->ReadImage('xc:black', $colourfile);
 my $radius = 1;
@@ -118,16 +120,23 @@ if (defined $auto_lat) {
 foreach my $i (@points) {
     my ($lat, $long) = @{$i};
     my ($px, $py, $wpx, $wpy) = ll_to_px($lat, $long, $centre_lat, $centre_long, $zoom, $width, $height);
-    my $points = sprintf("%d,%d %d,%d", $px, $py, $px+$radius, $py+$radius);
+    my $points = sprintf("%d,%d", 2*$px, 2*$py);
+    #my $points = sprintf("%d,%d %d,%d", $px, $py, $px+$radius, $py+$radius);
     if ($px >= 0 and $px <= $width and $py >= 0 and $py <= $height) {
-        $image->[0]->Draw(primitive=>'circle',stroke=>'none',fill=>'#CCCCCCF4',points=>$points);
+        # $image->[0]->Draw(primitive=>'circle',stroke=>'none',fill=>'#CCCCCCF4',points=>$points);
+        # $image->[0]->Draw(primitive=>'circle',stroke=>'none',fill=>'#111111F4',points=>$points);
+        $image->[0]->Draw(primitive=>'point',stroke=>'#CCCCCCF4',fill=>'#CCCCCCF4',points=>$points);
     }
 }
 
-$image->[0]->ContrastStretch(channel => 'All', levels => '15%');
 $image->[0]->Blur(radius => 2, sigma => 2);
+$image->[0]->Transparent(color => 'black');
+$image->[0]->ContrastStretch(channel => 'All', levels => '25%');
 $image->[0]->Set(type => 'TrueColorMatte');
 my $p = $image->Fx(expression=>"v.p{0,u*v.h}");
+$p->Resize(width => $width, height => $height, blur => 1.1);
+
+# $p->Resize(width => $width, height => $height, blur => 1.1, filter => Cubic);
 
 $| = 1;
 binmode STDOUT;
@@ -144,7 +153,7 @@ if (defined $gmap) { # we got our static map
     my $png = Image::Magick->new(magick=>'png');
     my $x = $png->BlobToImage($gmap);
     die "$x" if "$x";
-    $png->Composite(image => $p, compose => 'Multiply', gravity => 'center');
+    $png->Composite(image => $p, compose => 'Over', gravity => 'center');
     if (not defined $output) {
         $png->Write('png:-');
         print STDERR "combined heatmap/gmap written to STDOUT\n";
