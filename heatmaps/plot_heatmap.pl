@@ -13,7 +13,15 @@ my $col_long = 2;
 my $fieldnames = undef;
 my $draw_gmap = 1;
 my $auto_lat = undef;
+my $bound = undef;
+my $force_zoom = undef;
 
+my $places = {
+    "gnw" => [51.45,-0.05, 51.5,0.05],
+    "central" => [51.425,-0.25, 51.55,0.075],
+    "sale" => [53.41,-2.40, 53.46,-2.30],
+    "budapest" => [47.46,19.00, 47.55,19.13],
+};
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
 my $centre_long = '-1.5';
@@ -29,6 +37,7 @@ my $result = GetOptions(
     "clatitude=i" => \$col_lat,
     "clongitude=i" => \$col_long,
     "fieldnames" => \$fieldnames,
+    "bound=s" => \$bound,
     "gmap!" => \$draw_gmap,
     "auto!" => \$auto_lat,
 );
@@ -44,6 +53,15 @@ if ($width > 640 or $height > 640) {
 my ($p_width, $p_height) = (2*$width, 2*$height);
 print "$size => ${p_width}x${p_height}\n";
 
+if (defined $bound) {
+    if ($bound =~ s/@(\d+)$//) {
+        $force_zoom = $1;
+        print "Forcing zoom to be $force_zoom\n";
+    }
+    if (not defined $places->{$bound}) {
+        die "Error: bound [$bound] unknown";
+    }
+}
 if (! -r $colourfile) {
     die "Error: $colourfile is not readable";
 }
@@ -113,8 +131,18 @@ if ($bad_lines > 0) {
 }
 
 if (defined $auto_lat) {
+    if (defined $bound) {
+        my $box = $places->{$bound};
+        ($min_lat, $min_long, $max_lat, $max_long) = @{$box};
+        print STDERR "Bound[$bound]: ($min_lat, $min_long) ($max_lat, $max_long)\n";
+    }
     ($centre_lat,$centre_long,$zoom) = bounds_to_zoom($min_lat,$min_long,$max_lat,$max_long,$width,$height);
+    if (defined $force_zoom) {
+        $zoom = $force_zoom;
+    }
     print STDERR "Auto-scaling: --lat $centre_lat --long $centre_long --zoom $zoom\n";
+    print STDERR "($min_lat, $min_long) ($max_lat, $max_long)\n";
+}
 }
 
 foreach my $i (@points) {
