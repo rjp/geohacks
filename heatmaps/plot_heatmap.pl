@@ -163,7 +163,6 @@ if (defined $auto_lat) {
     print STDERR "Auto-scaling: --lat $centre_lat --long $centre_long --zoom $zoom\n";
     print STDERR "($min_lat, $min_long) ($max_lat, $max_long)\n";
 }
-}
 
 foreach my $i (@points) {
     my ($lat, $long) = @{$i};
