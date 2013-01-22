@@ -26,7 +26,8 @@ my $places = {
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
 my $centre_long = '-1.5';
-my $zoom = 7;
+my $default_zoom = 7;
+my $zoom = undef;
 
 my $result = GetOptions(
     "latitude=f" => \$centre_lat,
@@ -75,6 +76,11 @@ if (defined $zoom and defined $auto_lat) {
     print "--zoom and --auto forces zoom to be $zoom\n";
     $force_zoom = $zoom;
 }
+
+if (not defined $zoom) {
+    $zoom = $default_zoom;
+}
+
 # try and find the lat/long fields from the first line
 # only works for /^(long|lat)(itude|$)/
 if (defined $fieldnames) {
