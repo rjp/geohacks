@@ -15,6 +15,7 @@ my $draw_gmap = 1;
 my $auto_lat = undef;
 my $bound = undef;
 my $force_zoom = undef;
+my $osm_statics = undef;
 
 my $places = {
     "gnw" => [51.45,-0.05, 51.5,0.05],
@@ -40,6 +41,8 @@ my $result = GetOptions(
     "bound=s" => \$bound,
     "gmap!" => \$draw_gmap,
     "auto!" => \$auto_lat,
+    "map!"  => \$draw_gmap,
+    "osm!"  => \$osm_statics,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
@@ -48,7 +51,9 @@ if ($size !~ /^(\d+)x(\d+)$/) {
 
 my ($width, $height) = $size =~ /^(\d+)x(\d+)$/;
 if ($width > 640 or $height > 640) {
-    die "Error: size must be less than 640x640, you wanted $size";
+    if (not defined $osm_statics) {
+        die "Error: size must be less than 640x640, you wanted $size";
+    }
 }
 my ($p_width, $p_height) = (2*$width, 2*$height);
 print "$size => ${p_width}x${p_height}\n";
@@ -86,6 +91,11 @@ if (defined $fieldnames) {
         $i++; # no each_with_index in perl, boo
     }
     print STDERR "found latitude at $col_lat, longitude at $col_long\n";
+}
+
+my $static_maker = \&static_gmaps;
+if (defined $osm_statics) {
+    $static_maker = \&static_osm;
 }
 
 # adjust human-powered column numbers into perl-powered array indexes
@@ -173,7 +183,7 @@ $p->Resize(width => $width, height => $height, blur => 1.1);
 $| = 1;
 binmode STDOUT;
 
-my $static_map = "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=false&center=${centre_lat},${centre_long}&zoom=${zoom}";
+my $static_map = $static_maker->($centre_lat, $centre_long, $zoom, $width, $height);
 
 my $gmap = undef;
 if ($draw_gmap) {
@@ -208,6 +218,19 @@ if (defined $gmap) { # we got our static map
     }
     print STDERR "wget -O tmp.png '$static_map'\n";
     print STDERR "composite -compose Multiply -gravity center $to tmp.png heatmap.png\n";
+}
+
+sub static_osm {
+    my ($lat, $long, $zoom, $w, $h) = @_;
+
+    return "http://open.mapquestapi.com/staticmap/v4/getmap?size=${w},${h}&zoom=${zoom}&center=${lat},${long}&imagetype=png";
+}
+
+sub static_gmaps {
+    my ($lat, $long, $zoom, $w, $h) = @_;
+    my $size = "${w}x${h}";
+
+    return "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=false&center=${lat},${long}&zoom=${zoom}";
 }
 
 sub pi {
