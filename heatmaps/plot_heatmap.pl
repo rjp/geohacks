@@ -13,11 +13,21 @@ my $col_long = 2;
 my $fieldnames = undef;
 my $draw_gmap = 1;
 my $auto_lat = undef;
+my $bound = undef;
+my $force_zoom = undef;
+my $osm_statics = undef;
 
+my $places = {
+    "gnw" => [51.45,-0.05, 51.5,0.05],
+    "central" => [51.425,-0.25, 51.55,0.075],
+    "sale" => [53.41,-2.40, 53.46,-2.30],
+    "budapest" => [47.46,19.00, 47.55,19.13],
+};
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
 my $centre_long = '-1.5';
-my $zoom = 7;
+my $default_zoom = 7;
+my $zoom = undef;
 
 my $result = GetOptions(
     "latitude=f" => \$centre_lat,
@@ -29,8 +39,11 @@ my $result = GetOptions(
     "clatitude=i" => \$col_lat,
     "clongitude=i" => \$col_long,
     "fieldnames" => \$fieldnames,
+    "bound=s" => \$bound,
     "gmap!" => \$draw_gmap,
     "auto!" => \$auto_lat,
+    "map!"  => \$draw_gmap,
+    "osm!"  => \$osm_statics,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
@@ -39,11 +52,33 @@ if ($size !~ /^(\d+)x(\d+)$/) {
 
 my ($width, $height) = $size =~ /^(\d+)x(\d+)$/;
 if ($width > 640 or $height > 640) {
-    die "Error: size must be less than 640x640, you wanted $size";
+    if (not defined $osm_statics) {
+        die "Error: size must be less than 640x640, you wanted $size";
+    }
 }
+my ($p_width, $p_height) = (2*$width, 2*$height);
+print "$size => ${p_width}x${p_height}\n";
 
+if (defined $bound) {
+    if ($bound =~ s/@(\d+)$//) {
+        $force_zoom = $1;
+        print "Forcing zoom to be $force_zoom\n";
+    }
+    if (not defined $places->{$bound}) {
+        die "Error: bound [$bound] unknown";
+    }
+}
 if (! -r $colourfile) {
     die "Error: $colourfile is not readable";
+}
+
+if (defined $zoom and defined $auto_lat) {
+    print "--zoom and --auto forces zoom to be $zoom\n";
+    $force_zoom = $zoom;
+}
+
+if (not defined $zoom) {
+    $zoom = $default_zoom;
 }
 
 # try and find the lat/long fields from the first line
@@ -64,12 +99,17 @@ if (defined $fieldnames) {
     print STDERR "found latitude at $col_lat, longitude at $col_long\n";
 }
 
+my $static_maker = \&static_gmaps;
+if (defined $osm_statics) {
+    $static_maker = \&static_osm;
+}
+
 # adjust human-powered column numbers into perl-powered array indexes
 $col_lat--;
 $col_long--;
 
 my $image = Image::Magick->new();
-$image->Set(size=>$size);
+$image->Set(size=>"${p_width}x${p_height}");
 $image->Set(format=>'png');
 $image->ReadImage('xc:black', $colourfile);
 my $radius = 1;
@@ -111,28 +151,44 @@ if ($bad_lines > 0) {
 }
 
 if (defined $auto_lat) {
+    if (defined $bound) {
+        my $box = $places->{$bound};
+        ($min_lat, $min_long, $max_lat, $max_long) = @{$box};
+        print STDERR "Bound[$bound]: ($min_lat, $min_long) ($max_lat, $max_long)\n";
+    }
     ($centre_lat,$centre_long,$zoom) = bounds_to_zoom($min_lat,$min_long,$max_lat,$max_long,$width,$height);
+    if (defined $force_zoom) {
+        $zoom = $force_zoom;
+    }
     print STDERR "Auto-scaling: --lat $centre_lat --long $centre_long --zoom $zoom\n";
+    print STDERR "($min_lat, $min_long) ($max_lat, $max_long)\n";
 }
 
 foreach my $i (@points) {
     my ($lat, $long) = @{$i};
     my ($px, $py, $wpx, $wpy) = ll_to_px($lat, $long, $centre_lat, $centre_long, $zoom, $width, $height);
-    my $points = sprintf("%d,%d %d,%d", $px, $py, $px+$radius, $py+$radius);
+    my $points = sprintf("%d,%d", 2*$px, 2*$py);
+    #my $points = sprintf("%d,%d %d,%d", $px, $py, $px+$radius, $py+$radius);
     if ($px >= 0 and $px <= $width and $py >= 0 and $py <= $height) {
-        $image->[0]->Draw(primitive=>'circle',stroke=>'none',fill=>'#CCCCCCF4',points=>$points);
+        # $image->[0]->Draw(primitive=>'circle',stroke=>'none',fill=>'#CCCCCCF4',points=>$points);
+        # $image->[0]->Draw(primitive=>'circle',stroke=>'none',fill=>'#111111F4',points=>$points);
+        $image->[0]->Draw(primitive=>'point',stroke=>'#CCCCCCF4',fill=>'#CCCCCCF4',points=>$points);
     }
 }
 
-$image->[0]->ContrastStretch(channel => 'All', levels => '15%');
 $image->[0]->Blur(radius => 2, sigma => 2);
+$image->[0]->Transparent(color => 'black');
+$image->[0]->ContrastStretch(channel => 'All', levels => '25%');
 $image->[0]->Set(type => 'TrueColorMatte');
 my $p = $image->Fx(expression=>"v.p{0,u*v.h}");
+$p->Resize(width => $width, height => $height, blur => 1.1);
+
+# $p->Resize(width => $width, height => $height, blur => 1.1, filter => Cubic);
 
 $| = 1;
 binmode STDOUT;
 
-my $static_map = "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=false&center=${centre_lat},${centre_long}&zoom=${zoom}";
+my $static_map = $static_maker->($centre_lat, $centre_long, $zoom, $width, $height);
 
 my $gmap = undef;
 if ($draw_gmap) {
@@ -144,7 +200,7 @@ if (defined $gmap) { # we got our static map
     my $png = Image::Magick->new(magick=>'png');
     my $x = $png->BlobToImage($gmap);
     die "$x" if "$x";
-    $png->Composite(image => $p, compose => 'Multiply', gravity => 'center');
+    $png->Composite(image => $p, compose => 'Over', gravity => 'center');
     if (not defined $output) {
         $png->Write('png:-');
         print STDERR "combined heatmap/gmap written to STDOUT\n";
@@ -167,6 +223,19 @@ if (defined $gmap) { # we got our static map
     }
     print STDERR "wget -O tmp.png '$static_map'\n";
     print STDERR "composite -compose Multiply -gravity center $to tmp.png heatmap.png\n";
+}
+
+sub static_osm {
+    my ($lat, $long, $zoom, $w, $h) = @_;
+
+    return "http://open.mapquestapi.com/staticmap/v4/getmap?size=${w},${h}&zoom=${zoom}&center=${lat},${long}&imagetype=png";
+}
+
+sub static_gmaps {
+    my ($lat, $long, $zoom, $w, $h) = @_;
+    my $size = "${w}x${h}";
+
+    return "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=false&center=${lat},${long}&zoom=${zoom}";
 }
 
 sub pi {
