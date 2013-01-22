@@ -16,6 +16,7 @@ my $auto_lat = undef;
 my $bound = undef;
 my $force_zoom = undef;
 my $osm_statics = undef;
+my $fade = undef;
 
 my $places = {
     "gnw" => [51.45,-0.05, 51.5,0.05],
@@ -44,6 +45,7 @@ my $result = GetOptions(
     "auto!" => \$auto_lat,
     "map!"  => \$draw_gmap,
     "osm!"  => \$osm_statics,
+    "fade!" => \$fade,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
@@ -200,6 +202,14 @@ if (defined $gmap) { # we got our static map
     my $png = Image::Magick->new(magick=>'png');
     my $x = $png->BlobToImage($gmap);
     die "$x" if "$x";
+
+    if ($fade) {
+        my $gray = Image::Magick->new();
+        $gray->Set(size => "${width}x${height}");
+        $gray->Set(format => 'png');
+        $gray->ReadImage('xc:#808080FF');
+        $png->Composite(image => $gray, compose => 'Multiply', gravity => 'center');
+    }
     $png->Composite(image => $p, compose => 'Over', gravity => 'center');
     if (not defined $output) {
         $png->Write('png:-');
