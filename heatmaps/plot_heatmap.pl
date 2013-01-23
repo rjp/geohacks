@@ -5,6 +5,13 @@ use Getopt::Long;
 use LWP::Simple;
 use Scalar::Util qw(looks_like_number);
 
+my $places = {
+    "gnw" => [51.45,-0.05, 51.5,0.05],
+    "central" => [51.425,-0.25, 51.55,0.075],
+    "sale" => [53.41,-2.40, 53.46,-2.30],
+    "budapest" => [47.46,19.00, 47.55,19.13],
+};
+
 my $size = '600x600';
 my $output = undef;
 my $colourfile = "colors.png";
@@ -18,12 +25,6 @@ my $force_zoom = undef;
 my $osm_statics = undef;
 my $fade = undef;
 
-my $places = {
-    "gnw" => [51.45,-0.05, 51.5,0.05],
-    "central" => [51.425,-0.25, 51.55,0.075],
-    "sale" => [53.41,-2.40, 53.46,-2.30],
-    "budapest" => [47.46,19.00, 47.55,19.13],
-};
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
 my $centre_long = '-1.5';
