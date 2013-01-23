@@ -276,7 +276,7 @@ if (defined $gmap) { # we got our static map
     print STDERR "composite -compose Multiply -gravity center $to tmp.png heatmap.png\n";
 }
 
-sub static_osm {
+sub static_mapquest {
     my ($lat, $long, $zoom, $w, $h) = @_;
 
     return "http://open.mapquestapi.com/staticmap/v4/getmap?size=${w},${h}&zoom=${zoom}&center=${lat},${long}&imagetype=png";
