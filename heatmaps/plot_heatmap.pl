@@ -64,6 +64,7 @@ my $bound = undef;
 my $force_zoom = undef;
 my $osm_statics = undef;
 my $fade = undef;
+my $static = 'gmaps'; # default provider in $providers
 
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
@@ -87,18 +88,30 @@ my $result = GetOptions(
     "map!"  => \$draw_gmap,
     "osm!"  => \$osm_statics,
     "fade!" => \$fade,
+    "static=s" => \$static,
 );
 
 if ($size !~ /^(\d+)x(\d+)$/) {
     die "Error: size must be {number}x{number}, you wanted $size";
 }
 
-my ($width, $height) = $size =~ /^(\d+)x(\d+)$/;
-if ($width > 640 or $height > 640) {
-    if (not defined $osm_statics) {
-        die "Error: size must be less than 640x640, you wanted $size";
-    }
+my $provider = $providers->{$static};
+if (not defined $provider) {
+    my $list = join(', ', keys %{$providers});
+    die "Unknown provider '${static}'. Known are: ${list}";
 }
+
+my ($max_w, $max_h) = ($provider->{max}->{w}, $provider->{max}->{h});
+
+my ($width, $height) = $size =~ /^(\d+)x(\d+)$/;
+if ($width > $max_w) {
+    die "Error: width for ${static} must be less than ${max_w} (limits: ${max_w} x ${max_h})";
+}
+if ($height > $max_h) {
+    die "Error: height for ${static} must be less than ${max_h} (limits: ${max_w} x ${max_h})";
+}
+
+# TODO make this optional - probably don't want need 7680x7680 render at full Mapquest resolution
 my ($p_width, $p_height) = (2*$width, 2*$height);
 print "$size => ${p_width}x${p_height}\n";
 
@@ -231,7 +244,7 @@ $p->Resize(width => $width, height => $height, blur => 1.1);
 $| = 1;
 binmode STDOUT;
 
-my $static_map = $static_maker->($centre_lat, $centre_long, $zoom, $width, $height);
+my $static_map = $provider->{url}->($centre_lat, $centre_long, $zoom, $width, $height);
 
 my $gmap = undef;
 if ($draw_gmap) {
