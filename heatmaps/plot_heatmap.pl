@@ -12,6 +12,46 @@ my $places = {
     "budapest" => [47.46,19.00, 47.55,19.13],
 };
 
+my $providers = {
+    'gmaps' => {
+        name => 'Google Static Maps',
+        url => \&static_gmaps,
+        max => { w => 640, h => 640 },
+    },
+    'mapquest' => {
+        name => 'Mapquest Open Static',
+        url => \&static_mapquest,
+        max => { w => 3840, h => 3840 },
+    },
+    'ojw/bland' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('cloudmade_998'),
+        max => { w => 3200, h => 2000 },
+    },
+    'ojw/night' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('cloudmade_999'),
+        max => { w => 3200, h => 2000 },
+    },
+    'ojw/strong' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('cloudmade_5'),
+        max => { w => 3200, h => 2000 },
+    },
+    'ojw/grey' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('cloudmade_998', '&filter=grey'),
+        max => { w => 3200, h => 2000 },
+    },
+    'ojw/osm' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('mapnik'),
+        max => { w => 3200, h => 2000 },
+    },
+};
+
+## NO USER-SERVICEABLE PARTS BELOW ##
+
 my $size = '600x600';
 my $output = undef;
 my $colourfile = "colors.png";
@@ -247,6 +287,14 @@ sub static_gmaps {
     my $size = "${w}x${h}";
 
     return "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=false&center=${lat},${long}&zoom=${zoom}";
+}
+
+sub ojw_maker {
+    my ($style, $extra) = @_;
+    return sub {
+        my ($lat, $long, $zoom, $w, $h) = @_;
+        return "http://ojw.dev.openstreetmap.org/StaticMap/?lat=${lat}&lon=${long}&z=${zoom}&w=${w}&h=${h}&layer=${style}&mode=Style&att=none&show=1${extra}";
+    }
 }
 
 sub pi {
