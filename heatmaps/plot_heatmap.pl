@@ -65,6 +65,7 @@ my $force_zoom = undef;
 my $osm_statics = undef;
 my $fade = undef;
 my $static = 'gmaps'; # default provider in $providers
+my $listp = undef;
 
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
@@ -89,7 +90,17 @@ my $result = GetOptions(
     "osm!"  => \$osm_statics,
     "fade!" => \$fade,
     "static=s" => \$static,
+    "listp" => \$listp,
 );
+
+if (defined $listp) {
+    foreach my $key (sort keys %{$providers}) {
+        my $provider = $providers->{$key};
+        printf "%-15s %s (%s)\n", $key, $provider->{name},
+            join('x', $provider->{max}->{w}, $provider->{max}->{h});
+    }
+    exit 0;
+}
 
 if ($size !~ /^(\d+)x(\d+)$/) {
     die "Error: size must be {number}x{number}, you wanted $size";
