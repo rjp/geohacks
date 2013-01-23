@@ -5,6 +5,53 @@ use Getopt::Long;
 use LWP::Simple;
 use Scalar::Util qw(looks_like_number);
 
+my $places = {
+    "gnw" => [51.45,-0.05, 51.5,0.05],
+    "central" => [51.425,-0.25, 51.55,0.075],
+    "sale" => [53.41,-2.40, 53.46,-2.30],
+    "budapest" => [47.46,19.00, 47.55,19.13],
+};
+
+my $providers = {
+    'gmaps' => {
+        name => 'Google Static Maps',
+        url => \&static_gmaps,
+        max => { w => 640, h => 640 },
+    },
+    'mapquest' => {
+        name => 'Mapquest Open Static',
+        url => \&static_mapquest,
+        max => { w => 3840, h => 3840 },
+    },
+    'ojw/bland' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('cloudmade_998'),
+        max => { w => 3200, h => 2000 },
+    },
+    'ojw/night' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('cloudmade_999'),
+        max => { w => 3200, h => 2000 },
+    },
+    'ojw/strong' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('cloudmade_5'),
+        max => { w => 3200, h => 2000 },
+    },
+    'ojw/grey' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('cloudmade_998', '&filter=grey'),
+        max => { w => 3200, h => 2000 },
+    },
+    'ojw/osm' => {
+        name => 'OSM Statics by ojw',
+        url => ojw_maker('mapnik'),
+        max => { w => 3200, h => 2000 },
+    },
+};
+
+## NO USER-SERVICEABLE PARTS BELOW ##
+
 my $size = '600x600';
 my $output = undef;
 my $colourfile = "colors.png";
@@ -17,13 +64,9 @@ my $bound = undef;
 my $force_zoom = undef;
 my $osm_statics = undef;
 my $fade = undef;
+my $static = 'gmaps'; # default provider in $providers
+my $listp = undef;
 
-my $places = {
-    "gnw" => [51.45,-0.05, 51.5,0.05],
-    "central" => [51.425,-0.25, 51.55,0.075],
-    "sale" => [53.41,-2.40, 53.46,-2.30],
-    "budapest" => [47.46,19.00, 47.55,19.13],
-};
 # reasonable defaults for most of Britain
 my $centre_lat = '52.5';
 my $centre_long = '-1.5';
@@ -46,18 +89,40 @@ my $result = GetOptions(
     "map!"  => \$draw_gmap,
     "osm!"  => \$osm_statics,
     "fade!" => \$fade,
+    "static=s" => \$static,
+    "listp" => \$listp,
 );
+
+if (defined $listp) {
+    foreach my $key (sort keys %{$providers}) {
+        my $provider = $providers->{$key};
+        printf "%-15s %s (%s)\n", $key, $provider->{name},
+            join('x', $provider->{max}->{w}, $provider->{max}->{h});
+    }
+    exit 0;
+}
 
 if ($size !~ /^(\d+)x(\d+)$/) {
     die "Error: size must be {number}x{number}, you wanted $size";
 }
 
-my ($width, $height) = $size =~ /^(\d+)x(\d+)$/;
-if ($width > 640 or $height > 640) {
-    if (not defined $osm_statics) {
-        die "Error: size must be less than 640x640, you wanted $size";
-    }
+my $provider = $providers->{$static};
+if (not defined $provider) {
+    my $list = join(', ', keys %{$providers});
+    die "Unknown provider '${static}'. Known are: ${list}";
 }
+
+my ($max_w, $max_h) = ($provider->{max}->{w}, $provider->{max}->{h});
+
+my ($width, $height) = $size =~ /^(\d+)x(\d+)$/;
+if ($width > $max_w) {
+    die "Error: width for ${static} must be less than ${max_w} (limits: ${max_w} x ${max_h})";
+}
+if ($height > $max_h) {
+    die "Error: height for ${static} must be less than ${max_h} (limits: ${max_w} x ${max_h})";
+}
+
+# TODO make this optional - probably don't want need 7680x7680 render at full Mapquest resolution
 my ($p_width, $p_height) = (2*$width, 2*$height);
 print "$size => ${p_width}x${p_height}\n";
 
@@ -190,7 +255,7 @@ $p->Resize(width => $width, height => $height, blur => 1.1);
 $| = 1;
 binmode STDOUT;
 
-my $static_map = $static_maker->($centre_lat, $centre_long, $zoom, $width, $height);
+my $static_map = $provider->{url}->($centre_lat, $centre_long, $zoom, $width, $height);
 
 my $gmap = undef;
 if ($draw_gmap) {
@@ -235,7 +300,7 @@ if (defined $gmap) { # we got our static map
     print STDERR "composite -compose Multiply -gravity center $to tmp.png heatmap.png\n";
 }
 
-sub static_osm {
+sub static_mapquest {
     my ($lat, $long, $zoom, $w, $h) = @_;
 
     return "http://open.mapquestapi.com/staticmap/v4/getmap?size=${w},${h}&zoom=${zoom}&center=${lat},${long}&imagetype=png";
@@ -246,6 +311,14 @@ sub static_gmaps {
     my $size = "${w}x${h}";
 
     return "http://maps.google.com/maps/api/staticmap?size=${size}&sensor=false&center=${lat},${long}&zoom=${zoom}";
+}
+
+sub ojw_maker {
+    my ($style, $extra) = @_;
+    return sub {
+        my ($lat, $long, $zoom, $w, $h) = @_;
+        return "http://ojw.dev.openstreetmap.org/StaticMap/?lat=${lat}&lon=${long}&z=${zoom}&w=${w}&h=${h}&layer=${style}&mode=Style&att=none&show=1${extra}";
+    }
 }
 
 sub pi {
